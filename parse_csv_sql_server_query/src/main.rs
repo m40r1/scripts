@@ -10,12 +10,11 @@ use std::ops::Not;
 use std::usize;
 use std::{env, ffi::OsString, process};
 
-/// chama as funcoes para formatacao
-/// do arquivo csv de acordo com os padroes
-/// especificados pelas docs do pergamum
+/// calls the formating fn
+/// this is made according to the db data model
 fn formatar_csv(csv: &mut Csv) {
     csv.escreve_null();
-    //this
+    //this puts an ( before the first record
     csv.cod_empresa.insert(0, '(');
     csv.convert_nome_perg_str();
     csv.convert_rg_perg_str();
@@ -30,30 +29,28 @@ fn formatar_csv(csv: &mut Csv) {
     csv.convert_email_perg_str();
     csv.convert_sexo_perg_str();
     csv.convert_recebe_email_perg_str();
-    //this
+    //this puts as ), after the record
     csv.convert_apt_perg_str();
 }
-/// le um csv e escreve o csv formatado
+/// read and write logic here
 fn run() -> Result<(), Box<dyn Error>> {
-    // pega o caminho pro arquivo
-    // do primeiro argumento
     let file_path = primeiro_arg()?;
     let out_path = segundo_arg()?;
-    // prepara o leitor
 
+    //tweak the csv reader here
     let mut rdr = csv::ReaderBuilder::new()
         .has_headers(true)
         .delimiter(b';')
         .flexible(true)
         .from_path(file_path)?;
-    // prepara o escritor
+    // tweak the writer here
     let mut wtr = csv::WriterBuilder::new()
         .quote_style(csv::QuoteStyle::Never)
         .has_headers(true)
         .flexible(true)
         .from_path(out_path)?;
-    // loop por todo o csv
-    // usa a struct para saber o formato do csv
+    // loop the csv file
+    // write according to the csv struct
     for result in rdr.deserialize() {
         let mut csv: Csv = result?;
         //formato o csv junto com a leitura
@@ -61,7 +58,7 @@ fn run() -> Result<(), Box<dyn Error>> {
         //escreve o csv formatado
         wtr.serialize(&csv)?;
     }
-    // limpa
+    // cleans the write
     wtr.flush()?;
     Ok(())
 }
@@ -80,14 +77,15 @@ fn segundo_arg() -> Result<OsString, Box<dyn Error>> {
         Some(file_path) => Ok(file_path),
     }
 }
-/// check por na fn run
+/// check errs in the run fn
 fn main() {
     if let Err(err) = run() {
         println!("{}", err);
         process::exit(1)
     }
 }
-/// Estrutura com as colunas do csv
+/// csv structure
+/// use option if the record could be empty
 #[derive(Debug, Deserialize, Serialize)]
 struct Csv {
     cod_empresa: String,
@@ -121,14 +119,10 @@ struct Csv {
     apt: Option<String>,
 }
 
-/// metodos pra formatacao
-/// de acordo com especificacoes pergamum
+/// formating to db needs
 impl Csv {
-    /// Se o campo nao estiver nada escreve
-    /// NULL para a query ser valida
+    /// if the record is empty writes "NULL"
     fn escreve_null(&mut self) {
-        // eu uso o apt pra fechar a query
-        // vou fazer isso direito quando tiver tempo
         if self.apt.is_none() {
             self.apt = Some(String::from("NULL"));
         }
@@ -161,10 +155,12 @@ impl Csv {
             self.cpf = Some(String::from("NULL"));
         }
     }
-    /// string no sql server = ' tudo aqui e uma string'
+    /// string no sql server = ' str '
+    /// you can just copy & paste this
+    /// maybe later i make this a generic function
+    /// but i dont know how yet
     fn convert_nome_perg_str(&mut self) {
-        // check se o nome e maior q zero
-        // e n colocoram um NULL
+        // some basic checks
         if self.nome.len() > 0 && self.nome != "NULL" {
             // se nao tiver com o padrao de str do pergamum
             // formata o nome
@@ -185,16 +181,16 @@ impl Csv {
             }
         }
     }
-    /// cpf tem q ser uma str de len(11)
-    /// como o dksoft tem o cpf com digitos
-    /// tiro eles e converto em uma str
+    /// cpf.len must be 11
+    /// i receive the cpf with extra stuff
     fn limpa_cpf(&mut self) {
         let mut test = String::from("none");
         let a = self.cpf.as_mut().unwrap_or(&mut test);
         if a.len() > 0 && a != "NULL" {
-            // se o tamanho for errado excluo a pontuacao
-            // //quando vc vai remover lembra de recalcular a posicao
-            // //pq cada exclusao muda a ordem do index
+            // if its not the right size
+            // i already know where the separators will be
+            // remove changes the index
+            // so be smart
             if a.len() != 11 {
                 a.remove(3);
                 a.remove(6);
